@@ -1,421 +1,220 @@
 
-/* =========================================
-   1. CONEXIÓN CON SUPABASE
-========================================= */
-
 const SUPABASE_URL = "https://oskkqlrqztkcxvzvmmqn.supabase.co";
-
-// Reemplazá este texto por tu clave completa sb_publishable_
-const SUPABASE_ANON_KEY = "PEGAR_AQUI_TU_CLAVE_PUBLICABLE";
+const SUPABASE_ANON_KEY = "sb_publishable_CCFzJYKceC9n4-5CfdR8cw_Tnv0S3K3";
 
 const configured =
   SUPABASE_URL.startsWith("https://") &&
-  !SUPABASE_ANON_KEY.includes("PEGAR_AQUI") &&
-  SUPABASE_ANON_KEY.length > 20;
+  SUPABASE_ANON_KEY.startsWith("sb_publishable_");
 
-const client = configured
+const supabaseClient = configured
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
 
+const form = document.getElementById("functionForm");
+const pointName = document.getElementById("pointName");
+const latitude = document.getElementById("latitude");
+const longitude = document.getElementById("longitude");
+const movie = document.getElementById("movie");
+const startTime = document.getElementById("startTime");
+const genre = document.getElementById("genre");
+const recordsContainer = document.getElementById("records");
+const message = document.getElementById("message");
+const filterGenre = document.getElementById("filterGenre");
 
-/* =========================================
-   2. ELEMENTOS Y VARIABLES
-========================================= */
+let functionsList = [];
+let editingId = null;
 
-const $ = (id) => document.getElementById(id);
-
-let records = [];
-let selectedId = null;
-
-const form = $("function-form");
-const list = $("function-list");
-
-
-/* =========================================
-   3. MENSAJES
-========================================= */
-
-function showMessage(message, error = false) {
-  const node = $("form-message");
-  node.textContent = message;
-  node.classList.toggle("error", error);
+function showMessage(text, type = "info") {
+  if (!message) return;
+  message.textContent = text;
+  message.className = `message ${type}`;
 }
 
-
-/* =========================================
-   4. PROTEGER TEXTO HTML
-========================================= */
+function validCoordinates(lat, lng) {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  );
+}
 
 function escapeHTML(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (c) => ({
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
     '"': "&quot;",
-    "'": "&#39;"
-  }[c]));
+    "'": "&#039;"
+  })[char]);
 }
 
-
-/* =========================================
-   5. VALIDAR COORDENADAS
-========================================= */
-
-function validateCoordinates() {
-  const latText = $("latitude").value.trim();
-  const lngText = $("longitude").value.trim();
-
-  if (latText === "" || lngText === "") {
-    return "Ingresá latitud y longitud.";
-  }
-
-  const lat = Number(latText);
-  const lng = Number(lngText);
-
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    return "Las coordenadas deben ser números.";
-  }
-
-  if (lat < -90 || lat > 90) {
-    return "Latitud inválida: debe estar entre -90 y 90. El valor 95 está fuera del rango permitido.";
-  }
-
-  if (lng < -180 || lng > 180) {
-    return "Longitud inválida: debe estar entre -180 y 180.";
-  }
-
-  return null;
-}
-
-
-/* =========================================
-   6. MOSTRAR UBICACIÓN EN GOOGLE MAPS
-========================================= */
-
-function setMap(record) {
-  selectedId = record.id;
-
-  $("map-title").textContent = record.point_name;
-
-  $("map-hint").textContent =
-    `${record.movie} · ${record.start_time.slice(0, 5)} · ${record.genre}`;
-
-  $("coordinates").textContent =
-    `Latitud: ${record.latitude} · Longitud: ${record.longitude}`;
-
-  const query = `${record.latitude},${record.longitude}`;
-
-  $("map-frame").src =
-    `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`;
-
-  $("open-map").href =
-    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
-
-  renderList();
-}
-
-
-/* =========================================
-   7. MOSTRAR LISTA DE FUNCIONES
-========================================= */
-
-function renderList() {
-  const genre = $("genre-filter").value;
-
-  const visible = records.filter(
-    r => genre === "Todos" || r.genre === genre
-  );
-
-  $("record-count").textContent =
-    `${visible.length} ${visible.length === 1 ? "función" : "funciones"}`;
-
-  if (!visible.length) {
-    list.innerHTML =
-      '<p class="empty-state">No hay funciones para este filtro.</p>';
+async function loadFunctions() {
+  if (!supabaseClient) {
+    showMessage("Revisa la configuración de Supabase.", "error");
     return;
   }
 
-  list.innerHTML = visible.map(r => `
-    <article class="function-card ${r.id === selectedId ? "selected" : ""}" data-select="${r.id}">
-      <div class="card-top">
-        <div>
-          <p class="movie-name">${escapeHTML(r.movie)}</p>
-          <p class="point-name">${escapeHTML(r.point_name)}</p>
-        </div>
-
-        <span class="genre-pill ${r.genre === "Aventura" ? "adventure" : ""}">
-          ${escapeHTML(r.genre)}
-        </span>
-      </div>
-
-      <div class="card-meta">
-        <span>◷ ${escapeHTML(r.start_time.slice(0, 5))}</span>
-        <span>⌖ ${Number(r.latitude).toFixed(5)}, ${Number(r.longitude).toFixed(5)}</span>
-      </div>
-
-      <div class="card-actions">
-        <button class="small-button" data-edit="${r.id}" type="button">Editar</button>
-        <button class="small-button delete" data-delete="${r.id}" type="button">Eliminar</button>
-      </div>
-    </article>
-  `).join("");
-
-  list.querySelectorAll("[data-select]").forEach(el => {
-    el.addEventListener("click", (event) => {
-      if (event.target.closest("button")) return;
-
-      const record = records.find(
-        r => String(r.id) === el.dataset.select
-      );
-
-      if (record) setMap(record);
-    });
-  });
-
-  list.querySelectorAll("[data-edit]").forEach(btn => {
-    btn.addEventListener("click", () => editRecord(btn.dataset.edit));
-  });
-
-  list.querySelectorAll("[data-delete]").forEach(btn => {
-    btn.addEventListener("click", () => deleteRecord(btn.dataset.delete));
-  });
-}
-
-
-/* =========================================
-   8. CARGAR DATOS DESDE SUPABASE
-========================================= */
-
-async function loadRecords() {
-  if (!client) {
-    $("setup-warning").hidden = false;
-
-    list.innerHTML =
-      '<p class="empty-state">Configurá la clave publicable de Supabase en app.js.</p>';
-
-    return;
-  }
-
-  $("setup-warning").hidden = true;
-
-  list.innerHTML =
-    '<p class="empty-state">Cargando funciones…</p>';
-
-  const { data, error } = await client
+  const { data, error } = await supabaseClient
     .from("funciones")
     .select("*")
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false });
 
   if (error) {
-    list.innerHTML =
-      `<p class="empty-state">No se pudieron cargar los datos: ${escapeHTML(error.message)}. Revisá la tabla y las políticas RLS en Supabase.</p>`;
-
+    showMessage("Error al cargar: " + error.message, "error");
     return;
   }
 
-  records = data || [];
-
-  renderList();
-
-  if (selectedId) {
-    const current = records.find(
-      r => String(r.id) === String(selectedId)
-    );
-
-    if (current) setMap(current);
-  }
+  functionsList = data || [];
+  renderFunctions();
 }
 
+function renderFunctions() {
+  if (!recordsContainer) return;
 
-/* =========================================
-   9. LIMPIAR FORMULARIO
-========================================= */
+  const selectedGenre = filterGenre?.value || "Todos";
 
-function resetForm() {
+  const filtered = functionsList.filter((item) =>
+    selectedGenre === "Todos" || item.genre === selectedGenre
+  );
+
+  if (filtered.length === 0) {
+    recordsContainer.innerHTML = "<p>No hay funciones registradas.</p>";
+    return;
+  }
+
+  recordsContainer.innerHTML = filtered.map((item) => {
+    const lat = Number(item.latitude);
+    const lng = Number(item.longitude);
+    const mapUrl = `https://www.google.com/maps?q=${lat},${lng}&output=embed`;
+
+    return `
+      <article class="function-card">
+        <h3>${escapeHTML(item.movie)}</h3>
+        <p><strong>Plaza:</strong> ${escapeHTML(item.point_name)}</p>
+        <p><strong>Género:</strong> ${escapeHTML(item.genre)}</p>
+        <p><strong>Horario:</strong> ${escapeHTML(item.start_time)}</p>
+        <p><strong>Latitud:</strong> ${lat}</p>
+        <p><strong>Longitud:</strong> ${lng}</p>
+        <iframe
+          title="Mapa de ${escapeHTML(item.point_name)}"
+          src="${mapUrl}"
+          width="100%"
+          height="200"
+          style="border:0"
+          loading="lazy"
+          allowfullscreen>
+        </iframe>
+        <div class="card-actions">
+          <button type="button" onclick="editFunction('${item.id}')">
+            Editar
+          </button>
+          <button type="button" onclick="deleteFunction('${item.id}')">
+            Eliminar
+          </button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+form?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  if (!supabaseClient) {
+    showMessage("Supabase no está configurado.", "error");
+    return;
+  }
+
+  const lat = Number(latitude.value);
+  const lng = Number(longitude.value);
+
+  if (!validCoordinates(lat, lng)) {
+    showMessage("Ingresá coordenadas válidas.", "error");
+    return;
+  }
+
+  const record = {
+    point_name: pointName.value.trim(),
+    latitude: lat,
+    longitude: lng,
+    movie: movie.value.trim(),
+    start_time: startTime.value,
+    genre: genre.value
+  };
+
+  if (!record.point_name || !record.movie || !record.start_time) {
+    showMessage("Completá todos los campos.", "error");
+    return;
+  }
+
+  let result;
+
+  if (editingId) {
+    result = await supabaseClient
+      .from("funciones")
+      .update(record)
+      .eq("id", editingId);
+  } else {
+    result = await supabaseClient
+      .from("funciones")
+      .insert([record]);
+  }
+
+  if (result.error) {
+    showMessage("Error al guardar: " + result.error.message, "error");
+    return;
+  }
+
+  showMessage(
+    editingId ? "Función actualizada correctamente." : "Función guardada correctamente.",
+    "success"
+  );
+
+  editingId = null;
   form.reset();
+  await loadFunctions();
+});
 
-  $("record-id").value = "";
+window.editFunction = function (id) {
+  const item = functionsList.find((record) => String(record.id) === String(id));
+  if (!item) return;
 
-  $("form-title").textContent = "Agregar una función";
+  pointName.value = item.point_name;
+  latitude.value = item.latitude;
+  longitude.value = item.longitude;
+  movie.value = item.movie;
+  startTime.value = item.start_time;
+  genre.value = item.genre;
 
-  $("save-button").textContent = "Guardar función";
+  editingId = item.id;
+  showMessage("Editando función. Modificá los datos y guardá.", "info");
+  form?.scrollIntoView({ behavior: "smooth" });
+};
 
-  $("cancel-edit").hidden = true;
-}
+window.deleteFunction = async function (id) {
+  if (!confirm("¿Seguro que querés eliminar esta función?")) return;
 
-
-/* =========================================
-   10. EDITAR FUNCIÓN
-========================================= */
-
-async function editRecord(id) {
-  const r = records.find(
-    item => String(item.id) === String(id)
-  );
-
-  if (!r) return;
-
-  $("record-id").value = r.id;
-  $("point-name").value = r.point_name;
-  $("movie").value = r.movie;
-  $("start-time").value = r.start_time.slice(0, 5);
-  $("genre").value = r.genre;
-  $("latitude").value = r.latitude;
-  $("longitude").value = r.longitude;
-
-  $("form-title").textContent = "Editar función";
-
-  $("save-button").textContent = "Guardar cambios";
-
-  $("cancel-edit").hidden = false;
-
-  showMessage("Editando la función seleccionada.");
-
-  window.scrollTo({
-    top: $("function-form").getBoundingClientRect().top + window.scrollY - 20,
-    behavior: "smooth"
-  });
-}
-
-
-/* =========================================
-   11. ELIMINAR FUNCIÓN
-========================================= */
-
-async function deleteRecord(id) {
-  const r = records.find(
-    item => String(item.id) === String(id)
-  );
-
-  if (!r || !confirm(`¿Eliminar la función "${r.movie}"?`)) {
-    return;
-  }
-
-  const { error } = await client
+  const { error } = await supabaseClient
     .from("funciones")
     .delete()
     .eq("id", id);
 
   if (error) {
-    return showMessage(
-      `No se pudo eliminar: ${error.message}`,
-      true
-    );
+    showMessage("Error al eliminar: " + error.message, "error");
+    return;
   }
 
-  if (String(selectedId) === String(id)) {
-    selectedId = null;
+  showMessage("Función eliminada correctamente.", "success");
+  await loadFunctions();
+};
 
-    $("map-title").textContent = "Elegí una función";
+filterGenre?.addEventListener("change", renderFunctions);
 
-    $("map-hint").textContent =
-      "Seleccioná una tarjeta para ver dónde se instalará la pantalla.";
-
-    $("coordinates").textContent =
-      "Latitud: — · Longitud: —";
-
-    $("map-frame").src =
-      "https://www.google.com/maps?q=Asunci%C3%B3n%2C%20Paraguay&output=embed";
-
-    $("open-map").href = "https://www.google.com/maps";
-  }
-
-  showMessage("Función eliminada correctamente.");
-
-  await loadRecords();
+if (window.supabase && configured) {
+  loadFunctions();
+} else {
+  showMessage("No se pudo iniciar Supabase. Revisá la configuración.", "error");
 }
-
-
-/* =========================================
-   12. GUARDAR O ACTUALIZAR FUNCIÓN
-========================================= */
-
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  if (!client) {
-    return showMessage(
-      "Primero configurá Supabase en app.js.",
-      true
-    );
-  }
-
-  const coordinateError = validateCoordinates();
-
-  if (coordinateError) {
-    return showMessage(coordinateError, true);
-  }
-
-  const payload = {
-    point_name: $("point-name").value.trim(),
-    movie: $("movie").value.trim(),
-    start_time: $("start-time").value,
-    genre: $("genre").value,
-    latitude: Number($("latitude").value),
-    longitude: Number($("longitude").value)
-  };
-
-  if (
-    !payload.point_name ||
-    !payload.movie ||
-    !payload.start_time ||
-    !payload.genre
-  ) {
-    return showMessage("Completá todos los campos.", true);
-  }
-
-  const id = $("record-id").value;
-
-  const result = id
-    ? await client.from("funciones")
-        .update(payload)
-        .eq("id", id)
-        .select()
-        .single()
-    : await client.from("funciones")
-        .insert(payload)
-        .select()
-        .single();
-
-  if (result.error) {
-    return showMessage(
-      `Error al guardar: ${result.error.message}`,
-      true
-    );
-  }
-
-  resetForm();
-
-  showMessage(
-    id
-      ? "Cambios guardados correctamente."
-      : "Función creada correctamente."
-  );
-
-  await loadRecords();
-
-  if (result.data) {
-    setMap(result.data);
-  }
-});
-
-
-/* =========================================
-   13. BOTONES Y FILTROS
-========================================= */
-
-$("cancel-edit").addEventListener("click", () => {
-  resetForm();
-  showMessage("");
-});
-
-$("genre-filter").addEventListener("change", renderList);
-
-$("refresh-button").addEventListener("click", loadRecords);
-
-
-/* =========================================
-   14. INICIAR APLICACIÓN
-========================================= */
-
-loadRecords();
