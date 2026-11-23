@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10251f">
+  <title>Cine en las plazas</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand"><span class="brand-icon">▶</span><div><strong>Cine en las plazas</strong><small>Funciones al aire libre</small></div></div>
+    <span class="header-tag">Agenda comunitaria</span>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">CULTURA · COMUNIDAD · CINE</p>
+        <h1>Una película, <em>una plaza</em>.</h1>
+        <p>Consultá los horarios y encontrá el lugar de cada función.</p>
+      </div>
+      <div class="hero-mark" aria-hidden="true">✦</div>
+    </section>
+
+    <section class="setup-warning" id="setup-warning" hidden>
+      <strong>Falta configurar Supabase.</strong>
+      Abrí <code>app.js</code> y completá <code>SUPABASE_URL</code> y <code>SUPABASE_ANON_KEY</code> con los datos de tu proyecto.
+    </section>
+
+    <section class="panel form-panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">ADMINISTRACIÓN</p><h2 id="form-title">Agregar una función</h2></div>
+        <span class="step-dot">01</span>
+      </div>
+      <form id="function-form">
+        <input type="hidden" id="record-id">
+        <div class="form-grid">
+          <label>Nombre del punto / sector
+            <input id="point-name" maxlength="100" placeholder="Ej.: Plaza principal - sector norte" required>
+          </label>
+          <label>Película
+            <input id="movie" maxlength="120" placeholder="Nombre de la película" required>
+          </label>
+          <label>Hora de inicio
+            <input id="start-time" type="time" required>
+          </label>
+          <label>Género
+            <select id="genre" required>
+              <option value="">Seleccioná un género</option>
+              <option value="Comedia">Comedia</option>
+              <option value="Aventura">Aventura</option>
+            </select>
+          </label>
+          <label>Latitud (−90 a 90)
+            <input id="latitude" inputmode="decimal" type="number" step="any" min="-90" max="90" placeholder="-25.3000" required>
+          </label>
+          <label>Longitud (−180 a 180)
+            <input id="longitude" inputmode="decimal" type="number" step="any" min="-180" max="180" placeholder="-57.6000" required>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button class="button primary" type="submit" id="save-button">Guardar función</button>
+          <button class="button secondary" type="button" id="cancel-edit" hidden>Cancelar edición</button>
+          <span id="form-message" class="message" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="content-grid">
+      <div class="panel listings-panel">
+        <div class="section-heading list-heading">
+          <div><p class="eyebrow">PROGRAMACIÓN</p><h2>Funciones cargadas</h2></div>
+          <span class="count" id="record-count">0 funciones</span>
+        </div>
+        <div class="filter-row">
+          <label for="genre-filter">Filtrar por género</label>
+          <select id="genre-filter">
+            <option value="Todos">Todos</option>
+            <option value="Comedia">Comedia</option>
+            <option value="Aventura">Aventura</option>
+          </select>
+          <button type="button" class="button text-button" id="refresh-button">Actualizar</button>
+        </div>
+        <div id="function-list" class="function-list">
+          <p class="empty-state">Cargando funciones…</p>
+        </div>
+      </div>
+
+      <aside class="panel map-panel">
+        <div class="section-heading">
+          <div><p class="eyebrow">UBICACIÓN</p><h2 id="map-title">Elegí una función</h2></div>
+          <span class="map-pin">⌖</span>
+        </div>
+        <p class="map-hint" id="map-hint">Seleccioná una tarjeta para ver dónde se instalará la pantalla.</p>
+        <div class="map-frame">
+          <iframe id="map-frame" title="Mapa de ubicación de la función" loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            src="https://www.google.com/maps?q=Asunci%C3%B3n%2C%20Paraguay&output=embed"></iframe>
+        </div>
+        <div class="coordinates" id="coordinates">Latitud: — · Longitud: —</div>
+        <a class="map-link" id="open-map" href="https://www.google.com/maps" target="_blank" rel="noopener">Abrir en Google Maps ↗</a>
+      </aside>
+    </section>
+
+    <footer>Proyecto académico · 2.º BTI · Software y Laboratorio</footer>
+  </main>
+</body>
+</html>
